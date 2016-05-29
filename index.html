@@ -1,0 +1,373 @@
+<html>
+	<head>
+		<script>
+				
+			// Training Data
+			//var inputs = [[-1,-1],[-1,1],[1,-1], [1,1]];
+			//var outputs = [[-1], [1], [1], [-1]];
+			
+			var inputs = null;
+			var outputs = null;
+						
+			var outputArea;
+		
+			var JsonObj = null;
+			
+			function handleFileSelect(evt) {
+				var files = evt.target.files; // FileList object
+				f = files[0];
+										
+				outputArea.innerHTML += "Try to load " + evt.target.fileType + " file<br/>";
+				var reader = new FileReader();
+
+				// Closure to capture the file information.
+				reader.onload = (function (theFile) {
+					return function (e) {
+						JsonObj = e.target.result
+						//console.log(JsonObj);
+						var parsedJSON = JSON.parse(JsonObj);
+						//console.log(parsedJSON);
+						inputs = parsedJSON.inputs;
+						outputs = parsedJSON.outputs;
+						
+						outputArea.innerHTML += "...file loaded!<br/>";
+					};
+				})(f);
+
+				// Read in JSON as a data URL.
+				reader.readAsText(f, 'UTF-8');
+			}
+
+			// nodes in each layers
+			var n = 2; // Input
+			var q = 3; // Hidden
+			var p = 1; // Output
+			
+			// network parameters
+			var eta = 0.01; // learning rate
+			var alpha = 0.7; // momentum
+			var epoch_end = 10000;
+			var threshold = 0.001;
+			
+			// variables to use
+			var weights_InputToHidden = new Array(n);
+			var weights_HiddenToOutput = new Array(q);
+			var weights_InputToHidden2 = new Array(n);
+			var weights_HiddenToOutput2 = new Array(n);
+			var hbias = new Array(q);
+			var hbias2 = new Array(q);
+			var obias = new Array(p);
+			var obias2 = new Array(p);
+			
+            function initialize() {
+
+				outputArea.innerHTML = ""; // clear output area
+			
+				// Update parameters
+				n = parseInt(document.getElementById("n").value);
+				q = parseInt(document.getElementById("q").value);
+				p = parseInt(document.getElementById("p").value);
+				eta = parseFloat(document.getElementById("eta").value);
+				alpha = parseFloat(document.getElementById("alpha").value);
+				epoch_end = parseInt(document.getElementById("epoch_end").value);
+				threshold = parseFloat(document.getElementById("threshold").value);
+				
+				outputArea.innerHTML += "Input " + n + "<br/>";
+				outputArea.innerHTML += "Hidden " + p + "<br/>";
+				outputArea.innerHTML += "Output " + q + "<br/>";
+				outputArea.innerHTML += "Eta " + eta + "<br/>";
+				outputArea.innerHTML += "Alpha " + alpha + "<br/>";
+				outputArea.innerHTML += "epoch_end " + epoch_end + "<br/>";
+				outputArea.innerHTML += "threshold " + threshold + "<br/>";
+			
+				// Update variables
+				weights_InputToHidden = new Array(n);
+				weights_HiddenToOutput = new Array(q);
+				weights_InputToHidden2 = new Array(n);
+				weights_HiddenToOutput2 = new Array(n);
+				hbias = new Array(q);
+				hbias2 = new Array(q);
+				obias = new Array(p);
+				obias2 = new Array(p);
+
+				// Connect Input to Hidden
+				for(var i = 0; i < n; i++) {
+					weights_InputToHidden[i] = new Array(q);
+					weights_InputToHidden2[i] = new Array(q);
+					for(var j = 0; j < q; j++) {
+						weights_InputToHidden[i][j] = Math.random() - 0.5; // weight between -0.5 ~ 0.5
+						weights_InputToHidden2[i][j] = weights_InputToHidden[i][j];
+					}
+				}
+				
+				// Connect Hidden To Output
+				for(var i = 0; i < q; i++) {
+					weights_HiddenToOutput[i] = new Array(p);
+					weights_HiddenToOutput2[i] = new Array(p);
+					hbias[i] = Math.random() - 0.5; // init bias
+					hbias2[i] = hbias[i]; // copy
+					for(var j = 0; j < p; j++) {
+						weights_HiddenToOutput[i][j] = Math.random() - 0.5; // weight between -0.5 ~ 0.5
+						weights_HiddenToOutput2[i][j] = weights_HiddenToOutput[i][j];
+					}
+				}
+				
+				// Output bias
+				for(var i = 0; i < p; i++) {
+					obias[i] = Math.random() - 0.5;
+					obias2[i] = obias[i];
+				}				
+			}
+		
+			function sigmoid(val) {
+				return (2.0 / (1.0 + (Math.exp(-val)))) - 1.0;
+			}
+			
+			function sigmoidDerivative(val) {
+				return (1.0 / 2.0) * (1.0 + sigmoid(val)) * (1.0 - sigmoid(val));
+			}
+			
+			function passFromInputToHidden(input) {
+				var in_HiddenNeurons = new Array(q);
+				for(var h = 0; h < q; h++) {
+					var sum = 0;
+					for(var i = 0; i < n; i++) {
+						sum += (weights_InputToHidden[i][h] * input[i]);
+						//document.write("weights_InputToHidden["+ i + "][" + h + "] * inputs["+ k + "][" + i + "] = " + weights_InputToHidden[i][h] * inputs[k][i] + "<br/>");
+					}
+					in_HiddenNeurons[h] = hbias[h] + sum; // neurons value
+					//in_HiddenNeurons[h] = sum; // neurons value
+					//document.write("in_HiddenNeurons[" + h + "] = " + in_HiddenNeurons[h] + "<br/>");
+				}
+				return in_HiddenNeurons;
+			}
+			
+			function passFromHiddenToOutput(hiddenNeurons) {
+				var in_OutputNeurons = new Array(p);
+				for(var j = 0; j < p; j++) { // for each neurons in output layer
+					var sum = 0;
+					for(var h = 0; h < q; h++) {
+						sum += (weights_HiddenToOutput[h][j] * sigmoid(hiddenNeurons[h]));
+						//document.write("weights_HiddenToOutput["+ h + "][" + j + "] * sigmoid(in_HiddenNeurons["+h+"]) = " + weights_HiddenToOutput[h][j] * sigmoid(in_HiddenNeurons[h]) + "<br/>");
+					}
+					in_OutputNeurons[j] = obias[j] + sum; // neurons value
+					//in_OutputNeurons[j] = sum; // neurons value
+					//document.write("in_OutputNeurons[" + j + "] = " + sum + "<br/>");
+				}
+				return in_OutputNeurons;
+			}
+			
+			function showCurrentWeight() {
+				// Output for debug
+				for(var i = 0; i < n; i++) {
+					for(var j = 0; j < q; j++) {
+						outputArea.innerHTML += "weights_InputToHidden["+ i + "][" + j + "]=" + weights_InputToHidden[i][j] + "<br/>";
+					}
+				}
+				
+				// Output for debug
+				for(var i = 0; i < q; i++) {
+					for(var j = 0; j < p; j++) {
+						outputArea.innerHTML += "weights_HiddenToOutput["+ i + "][" + j + "]=" + weights_HiddenToOutput[i][j] + "<br/>";
+					}
+				}
+			}
+			
+			function start() {
+			
+				initialize();
+				showCurrentWeight();
+				// Run
+				for(var epoch = 1; epoch <= epoch_end; epoch++) {
+					
+					for(var k = 0; k < inputs.length; k++) { // for each input
+					
+						//document.write("Traning Input " + k + "<br/>");
+					
+						var sum_of_errors = 0;
+						// ************ Phase I:  pass forward ***********
+					
+						// Hidden Layer
+						var in_HiddenNeurons = passFromInputToHidden(inputs[k]);
+						var out_HiddenNeurons = new Array(q);
+						for(var j = 0; j < q; j++)
+						{
+							out_HiddenNeurons[j] = sigmoid(in_HiddenNeurons[j]);
+							//document.write("out_HiddenNeurons["+j+"]=" + out_HiddenNeurons[j] + "<br/>");
+						}
+					
+						// Output Layer
+						var in_OutputNeurons = passFromHiddenToOutput(in_HiddenNeurons);
+						var out_OutputNeurons = new Array(p);
+						for(var j = 0; j < p; j++)
+						{
+							out_OutputNeurons[j] = sigmoid(in_OutputNeurons[j]);
+						}
+					
+						// ************ Phase II:  back propagation ***********
+						// Compute delta/errors at output neurons:
+						var delta_Output = new Array(p);
+						for(var j = 0; j < p; j++) {
+							delta_Output[j] = sigmoidDerivative(in_OutputNeurons[j]) * (outputs[k][j] - out_OutputNeurons[j]);
+						}
+						
+						var weightDelta_HiddenToOutput = new Array(q);
+						for(var h = 0; h < q; h++) {
+							weightDelta_HiddenToOutput[h] = new Array(p);
+							for(var j = 0; j < p; j++) {
+								weightDelta_HiddenToOutput[h][j] = eta * delta_Output[j] * out_HiddenNeurons[h];
+								//document.write("weightDelta_HiddenToOutput["+h+"]["+j+"]=" + weightDelta_HiddenToOutput[h][j] + "<br/>");
+							}
+						}
+						
+						// Update Weight
+						for(var h = 0; h < q; h++) {
+							for(var j = 0; j < p; j++) {
+								//weights_HiddenToOutput[h][j] +=  weightDelta_HiddenToOutput[h][j];
+								var delta = weightDelta_HiddenToOutput[h][j] + alpha * (weights_HiddenToOutput[h][j] - weights_HiddenToOutput2[h][j]);
+								weights_HiddenToOutput2[h][j] = weights_HiddenToOutput[h][j];
+								weights_HiddenToOutput[h][j] += delta;
+								//document.write("weights_HiddenToOutput["+ h + "][" + j + "] = " + weights_HiddenToOutput[h][j] + "<br/>");
+							}				
+						}
+						
+						// Update Bias
+						for(var j = 0; j < p; j++) {
+							var dobias = (eta * delta_Output[j]) + (alpha * (obias[j] - obias2[j]));
+							obias2[j] = obias[j];
+							obias[j] += dobias;	
+						}
+
+						// Compute deltas/errors at hidden neurons:
+						var delta_Hidden = new Array(q);
+						for(var h = 0; h < q; h++) {
+							var sum = 0;
+							for(var j = 0; j < p; j++) {
+								sum += delta_Output[j] * weights_HiddenToOutput[h][j];
+							}
+							delta_Hidden[h] = (sum * sigmoidDerivative(in_HiddenNeurons[h]));
+							// Update Bias
+							var dhbias = (eta * delta_Hidden[h]) + (alpha * (hbias[h] - hbias2[h]));
+							hbias2[h] = hbias[h];
+							hbias[h] += dhbias;
+						}
+						
+						var weightDelta_InputToHidden = new Array(n);
+						for(var i = 0; i < n; i++) {
+							weightDelta_InputToHidden[i] = new Array(q);
+							for(var h = 0; h < q; h++) {
+								weightDelta_InputToHidden[i][h] = eta * delta_Hidden[h] * inputs[k][i];
+							}
+						}
+						
+						// Update Weight
+						for(var i = 0; i < n; i++) {
+							for(var h = 0; h < q; h++) {
+								//weights_InputToHidden[i][h] += weightDelta_InputToHidden[i][h];
+								var delta = weightDelta_InputToHidden[i][h] + alpha * (weights_InputToHidden[i][h] - weights_InputToHidden2[i][h]);
+								weights_InputToHidden2[i][h] = weights_InputToHidden[i][h];
+								weights_InputToHidden[i][h] += delta;
+								//document.write("weights_InputToHidden["+ i + "][" + h + "] = " + weights_InputToHidden[i][h] + "<br/>");
+							}
+						}
+						
+						for(var j = 0; j < p; j++) {
+							sum_of_errors += Math.pow(outputs[k][j] - out_OutputNeurons[j], 2);
+							//if(epoch % 1000 == 0) {
+							//	document.write("Expected: " + out_OutputNeurons[j] + " Actual:" + outputs[k][j] + "<br/>");
+							//}
+						}
+					} // End a Epoch
+					
+					sum_of_errors /= inputs.length;
+					
+					//document.write("epoch " + epoch);
+					//document.write("sum of errors = " + sum_of_errors + "<br/>");
+					
+					if(sum_of_errors < threshold) {
+						break;
+					}
+				}
+				
+				outputArea.innerHTML += "Done After " + epoch + " Epochs Trained<br/>";
+				//validation();
+				
+				return;
+			}
+			
+			function validation() {
+				// Validation
+				outputArea.innerHTML += "Start Testing...<br/>";
+				//showCurrentWeight();
+				
+				for(var k = 0; k < inputs.length; k++) {
+					var in_HiddenNeurons = passFromInputToHidden(inputs[k]);
+					var out_HiddenNeurons = new Array(q);
+					for(var j = 0; j < q; j++)
+					{
+						out_HiddenNeurons[j] = sigmoid(in_HiddenNeurons[j]);
+					}
+					
+					// Output Layer
+					var in_OutputNeurons = passFromHiddenToOutput(in_HiddenNeurons);
+					var out_OutputNeurons = new Array(p);
+					for(var j = 0; j < p; j++)
+					{
+						out_OutputNeurons[j] = sigmoid(in_OutputNeurons[j]);
+					}
+				
+					// for each input
+					outputArea.innerHTML += "Under Input: ";
+					for(var i = 0; i < inputs[k].length; i++) {
+						outputArea.innerHTML += inputs[k][i] + " ";
+					}
+					outputArea.innerHTML += "=>" ;
+					for(var j = 0; j < p; j++) {
+						outputArea.innerHTML += "Expected: " + outputs[k][j] + " Actual:" + out_OutputNeurons[j] + "<br/>";
+					}
+				}		
+			}
+		</script>
+	</head>
+	<body>
+		<div>
+			<div style="width: 250px; float:left; height: 100%; padding-right: 20px">
+				<h2>Training</h2>
+				Training File: <input type="file" id="trainingFile" /><br/>
+				Number of Neurons in Input Layer <br/><input id="n" value="2" type="text"/><br/>
+				Number of Neurons in Hidden Layer <br/> <input id="q" value="3" type="text"/><br/>
+				Number of Neurons in Output Layer <br/> <input id="p" value="1" type="text"/><br/>
+				Learning Rate Eta <br/> <input id="eta" value="0.01" type="text"/><br/>
+				Momentum Alpha <br/> <input id="alpha" value="0.7" type="text"/><br/>
+				Number of Epoch to Stop <br/> <input value="10000" id="epoch_end" type="text"/><br/>
+				Threshold to Stop<br/> <input value="0.001" id="threshold" type="text"/><br/>
+				<button style="float: right" onClick="start()">Train</button><br/>
+				<div>
+					<h2>Test</h2>
+					Testing File: <input type="file" id="testingFile" /><br/>
+					<button style="float: right" onClick="validation()">Test</button><br/>
+				</div>
+			</div>
+			<div id="outputArea" style="position: relative; padding-left: 10px; overflow:hidden;">
+				<pre>
+				Steps:
+				1. Load Training file (train.json)
+				2. Modify network parameters
+				3. Click Train button to train network
+				4. Load Test file (test.json)
+				5. Click Test to test network
+				</pre>
+			</div>
+		</div>
+		<script>
+			// bind
+			var trainFileElement = document.getElementById('trainingFile');
+			trainFileElement.addEventListener('change', handleFileSelect, false);
+			trainFileElement.fileType = "training";
+			var testFileElement = document.getElementById('testingFile');
+			testFileElement.addEventListener('change', handleFileSelect, false);
+			testFileElement.fileType = "testing";
+			outputArea = document.getElementById('outputArea');
+		</script>		
+	</body>
+</html>

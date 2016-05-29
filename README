@@ -1,0 +1,26 @@
+** Quick Start:
+
+Open index.html with browser and you will know how to use.
+# Program is test under Chrome and IE11
+
+** Input File Format:
+{
+	"inputs": [[sample1_attr1, sample1_attr2], ...., [sampleN_attr1, sampleN_attr2]],
+	"outputs": [[sample1_Output], .... [sampleN_Output]]
+}
+
+Below is a pratical example:
+{
+	"inputs": [[-1,-1],[-1,1],[1,-1], [1,1]],
+	"outputs": [[-1], [1], [1], [-1]]
+}
+
+input [-1, -1] and expected output is [-1]
+
+** Run XOR Example
+
+Under Input: -1 -1 =>Expected: -1 Actual:-0.9351417768489038
+Under Input: -1 1 =>Expected: 1 Actual:0.9108003476957609
+Under Input: 1 -1 =>Expected: 1 Actual:0.9127561726999638
+Under Input: 1 1 =>Expected: -1 Actual:-0.9367785230719473
+
